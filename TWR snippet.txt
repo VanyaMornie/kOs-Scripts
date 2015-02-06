@@ -1,0 +1,23 @@
+clearscreen.
+set g0 to 9.82.	  // the correct g factor, not 9,81, 
+                  // even though that's surface gravity on Kerbin.
+set t to 1.       // 100%
+set pitch to 90.  // straight up.
+stage.
+lock twr to maxthrust / (mass * g0).
+lock throttle to t.
+lock steering to up + R (0,0,180) + R(0,pitch - 90,0).
+
+when (twr > 1.5) then { 
+    set t to 0.7.
+    print "TWR > 1.5, reducing throttle" at (0,4).
+}.
+when (altitude > 5000) then {
+    set pitch to 45. 
+    print "Pitching right (course 90)" at (0,6).
+}.
+
+// wait until altitude > 15000.	  // give us some data instead
+until (altitude > 15000) {
+    print "TWR: " + round(twr,2) + "    " at (0,2).
+}.

@@ -1,0 +1,10 @@
+SET numOut to 0.
+LIST ENGINES IN engines. 
+FOR eng IN engines 
+{
+    IF eng:FLAMEOUT 
+    {
+        SET numOut TO numOut + 1.
+    }
+}
+if numOut > 0 { stage. }.
