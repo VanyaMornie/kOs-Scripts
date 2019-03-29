@@ -10,6 +10,7 @@
 //LAUNCH TO ORBIT
 
 RUN bodylib.ks. //get properties of the body you're launching from
+RUN nodelib.ks. //node library
 PARAMETER tarAp.
 PARAMETER tarInc IS 0.
 PARAMETER trnStart IS 500.
@@ -522,12 +523,7 @@ UNTIL launchComplete {
 	// Circularization burn maneuver node setup
     IF runMode = 3 {
         SET tset TO 0.
-        printList:ADD("T+"+ROUND(MET,1)+" Generating circularization maneuver node").
-        SET rPeriapsis TO PERIAPSIS + SHIP:BODY:RADIUS.
-        SET rApoapsis TO APOAPSIS + SHIP:BODY:RADIUS.
-        SET nodeDeltaV TO SQRT(SHIP:BODY:MU/(rApoapsis))*(1-SQRT(2*rPeriapsis/(rPeriapsis+rApoapsis))).
-        SET burnNode TO node(TIME:SECONDS+ETA:APOAPSIS, 0, 0, nodeDeltaV). ADD burnNode.
-        printList:ADD("T+"+ROUND(MET,1)+" Circ. burn = "+ROUND(nodeDeltaV,1)+" m/s in "+ROUND(ETA:APOAPSIS)+" s").
+		circNode().
         SET runMode TO 4.
         scrollPrint("T+"+ROUND(MET,1)+" Steering to maneuver node").
     }.
