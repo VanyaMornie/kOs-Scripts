@@ -24,7 +24,7 @@ if b = "Minmus" {
     set rb to 60000.
     set soi to 2247428.
     set ad0 to 0.
-    set lorb to 10000. 
+    set lorb to 10000.
 }
 if mu = 0 {
     print "T+" + round(missiontime) + " WARNING: no body properties for " + b + "!".
