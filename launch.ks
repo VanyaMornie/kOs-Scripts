@@ -439,7 +439,7 @@ UNTIL launchComplete {
     }.
 	// Ascent trajectory program until reach desired apoapsis  
     IF runMode = 1 {
-        PRINT "Ascent Guidamce" AT (17,0).
+        PRINT "Ascent Guidamce        " AT (17,0).
         IF WARP > 1 SET WARP TO 1. // limit physwarp to 2x for code stability
        
         IF stagingInProgress {
@@ -511,12 +511,10 @@ UNTIL launchComplete {
         PRINT "Coast out of atmosphere  " AT (17,0).
         IF WARP > 1 SET WARP TO 1. // limit physwarp to 2x for code stability
         SET steerTo TO SHIP:SRFPROGRADE.
-        IF ALTITUDE > atmTop {
-            SET runMode TO 3.
-        }.
-	        // calculate target velocity
-        if apoapsis >= lorb { set tset to 0. }
-        if apoapsis < lorb { set tset to (lorb-apoapsis)/(lorb*0.01). }
+        //cheaty atmosphere loss
+			IF APOAPSIS >= tarAp {SET tset TO 0. }
+			IF APOAPSIS < tarAp {SET tset TO (tarAp-APOAPSIS)/(tarAp*0.01).}
+		IF ALTITUDE > atmTop {SET runMode TO 3.}.
 	}.
 	
 	// Circularization burn maneuver node setup
