@@ -10,7 +10,8 @@
 //LAUNCH TO ORBIT
 
 RUN bodylib.ks. //get properties of the body you're launching from
-PARAMETER tarAp.
+RUN nodelib.ks. //node library
+PARAMETER tarAlt.
 PARAMETER tarInc IS 0.
 PARAMETER trnStart IS 500.
 PARAMETER trnEnd IS 35000.
@@ -24,7 +25,7 @@ SET soi TO BODY:SOIRADIUS.
 SET atmTop TO BODY:ATM:HEIGHT.
 SET maxTWR TO 1.75.
 SET tSet TO 0.
-SET tarAp TO tarAp*1000.
+SET tarAlt TO tarAlt*1000.
 SET orbitError TO 5.
 SET maxq TO 7000.
 
@@ -51,8 +52,8 @@ SET autoAscent TO TRUE.
 //Error Checks
 
 //Is orbit clear of atmosphere
-IF tarAP*(1-orbitError/100)<atmTop {
-    PRINT "Target orbit apopapsis of "+tarAp*(1-orbitErrorThreshold/100)+"m  based on".
+IF tarAlt*(1-orbitError/100)<atmTop {
+    PRINT "Target orbit apopapsis of "+tarAlt*(1-orbitErrorThreshold/100)+"m  based on".
     PRINT "orbit error threshold is below atmosphere height".
     PRINT "of "+atmTop+"m".
     PRINT " ".
@@ -284,7 +285,7 @@ IF SHIP:BODY:ATM:EXISTS {
 
 // Calculate launch azimuth
 SET inertialAzimuth TO ARCSIN(MAX(MIN(COS(tarInc) / COS(launchLoc:LAT),1),-1)).
-SET targetOrbitSpeed TO SQRT(SHIP:BODY:MU / (tarAp+SHIP:BODY:RADIUS)).
+SET targetOrbitSpeed TO SQRT(SHIP:BODY:MU / (tarAlt+SHIP:BODY:RADIUS)).
 SET rotVelX TO targetOrbitSpeed*SIN(inertialAzimuth) - (2*CONSTANT:PI*SHIP:BODY:RADIUS/SHIP:BODY:ROTATIONPERIOD).
 SET rotVelY TO targetOrbitSpeed*COS(inertialAzimuth).
 SET launchAzimuth TO ARCTAN(rotVelX / rotVelY).
@@ -491,7 +492,7 @@ UNTIL launchComplete {
         }.     
        
         // Ascent mode end conditions
-        IF APOAPSIS >= tarAp {
+        IF APOAPSIS >= tarAlt {
             SET tset TO 0.
             SET trajectoryPitch TO 0.
             SET steerPitch TO 0.
@@ -511,21 +512,25 @@ UNTIL launchComplete {
         PRINT "Coast out of atmosphere  " AT (17,0).
         IF WARP > 1 SET WARP TO 1. // limit physwarp to 2x for code stability
         SET steerTo TO SHIP:SRFPROGRADE.
+<<<<<<< HEAD
         //cheaty atmosphere loss
 			IF APOAPSIS >= tarAp {SET tset TO 0. }
 			IF APOAPSIS < tarAp {SET tset TO (tarAp-APOAPSIS)/(tarAp*0.01).}
 		IF ALTITUDE > atmTop {SET runMode TO 3.}.
+=======
+		UNTIL ALTITUDE >= altTop {		    // cheaty coast burn to keep target apoapsis
+			IF APOAPSIS >= tarAlt { SET tset TO 0. }
+			IF APOAPSIS < tarAlt { SET tset TO (tarAlt-APOAPSIS)/(tarAlt*0.01). }	
+        IF ALTITUDE > atmTop {
+            SET runMode TO 3.
+        }.
+>>>>>>> launch-dev
 	}.
 	
 	// Circularization burn maneuver node setup
     IF runMode = 3 {
         SET tset TO 0.
-        printList:ADD("T+"+ROUND(MET,1)+" Generating circularization maneuver node").
-        SET rPeriapsis TO PERIAPSIS + SHIP:BODY:RADIUS.
-        SET rApoapsis TO APOAPSIS + SHIP:BODY:RADIUS.
-        SET nodeDeltaV TO SQRT(SHIP:BODY:MU/(rApoapsis))*(1-SQRT(2*rPeriapsis/(rPeriapsis+rApoapsis))).
-        SET burnNode TO node(TIME:SECONDS+ETA:APOAPSIS, 0, 0, nodeDeltaV). ADD burnNode.
-        printList:ADD("T+"+ROUND(MET,1)+" Circ. burn = "+ROUND(nodeDeltaV,1)+" m/s in "+ROUND(ETA:APOAPSIS)+" s").
+		MNV_APONODE(tarAlt).
         SET runMode TO 4.
         scrollPrint("T+"+ROUND(MET,1)+" Steering to maneuver node").
     }.
@@ -612,7 +617,7 @@ UNTIL launchComplete {
         IF burnTimeRemaining > 2 {
             SET tset TO 1.
             SET steerTo TO burnNode.
-            IF failedToSteer AND APOAPSIS > (1+orbitErrorThreshold/100)*tarAp AND PERIAPSIS > atmTop {
+            IF failedToSteer AND APOAPSIS > (1+orbitErrorThreshold/100)*tarAlt AND PERIAPSIS > atmTop {
                 printList:ADD("T+"+ROUND(MET,1)+" Overshot apoapsis, but in stable orbit").
                 scrollPrint("        Stopping circularization burn now").
                 SET tset TO 0.
@@ -853,9 +858,9 @@ IF launchComplete {
     printList:ADD("T+"+ROUND(MET,1)+" Orbit achieved").
     printList:ADD("-------------------------------------------").
     printList:ADD(" Final apoapsis = "+ROUND(APOAPSIS/1000,2)+
-        " km, Error = "+ROUND(ABS(tarAp-APOAPSIS)/1000,2)+" km").
+        " km, Error = "+ROUND(ABS(tarAlt-APOAPSIS)/1000,2)+" km").
     printList:ADD(" Final periapsis = "+ROUND(PERIAPSIS/1000,2)+
-        " km, Error = "+ROUND(ABS(tarAp-PERIAPSIS)/1000,2)+" km").
+        " km, Error = "+ROUND(ABS(tarAlt-PERIAPSIS)/1000,2)+" km").
     printList:ADD(" Final inclination = "+ROUND(SHIP:OBT:INCLINATION,1)+
         " deg, Error = "+ROUND(ABS(ABS(tarInc)-SHIP:OBT:INCLINATION),1)+" deg").
     printList:ADD(" Total dV spent = "+ROUND(dVSpent)+" m/s").
