@@ -523,7 +523,7 @@ UNTIL launchComplete {
 	// Circularization burn maneuver node setup
     IF runMode = 3 {
         SET tset TO 0.
-		circNode(tarAlt).
+		MNV_APONODE(tarAlt).
         SET runMode TO 4.
         scrollPrint("T+"+ROUND(MET,1)+" Steering to maneuver node").
     }.
