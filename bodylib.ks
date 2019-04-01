@@ -6,8 +6,6 @@ SET rb TO BODY:RADIUS.
 SET soi TO BODY:SOIRADIUS.
 SET limAtm TO BODY:ATM:HEIGHT.
  
-
-
 IF b = "Kerbin" {
     SET lowOrb TO 70000.	// low orbit altitude [m]
 	SET hiOrb TO 250000.	// high orbit altitude (m)		
