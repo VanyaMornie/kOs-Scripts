@@ -9,14 +9,15 @@
 //			(<turn exponent>,				//shape the ascent curve
 //LAUNCH TO ORBIT
 
-RUN bodylib.ks. //get properties of the body you're launching from
-RUN nodelib.ks. //node library
+ //node library
 PARAMETER tarAlt.
 PARAMETER tarInc IS 0.
 PARAMETER trnStart IS 500.
 PARAMETER trnEnd IS 35000.
 PARAMETER turnExponent IS 0.7.
 
+REQUIRE("bodylib.ks"). //get properties of the body you're launching from
+REQUIRE("nodelib.ks").
 //Variables
 SET b TO BODY:NAME.
 SET mu TO BODY:MU.
@@ -41,7 +42,7 @@ SET STEERINGMANAGER:ROLLPID:KI TO 0.
 SET allowAbort TO True. // whether or not to allow code to automatically trigger abort
 SET useWarp TO True. // whether or not to use timewarp to Apoapsis burn. Not recommended if using persistent rotation mod.
 SET logTimeIncrement TO 30. // base increment in seconds between periodic log entries; doubles while coasting, quadruples while timewarping)
-SET logVerboseData TO True. // turn verbose data log on or off
+SET logVerboseData TO FALSE. // turn verbose data log on or off
 SET verboseLogIncrement TO 1.0. // time increment for verbose log
 SET orbitErrorThreshold TO 5. // percent error allowed in orbital apoapsis or periapsis  
 SET maxNumReboost TO 3. // maximum number of times re-boost burn is allowed before aborting if apoapsis if falling
@@ -50,6 +51,14 @@ SET maxq to 20000.
 SET autoAscent TO TRUE.
 
 //Error Checks
+
+//Have you launched already?
+
+// IF NOT (SHIP:STATUS "PRELAUNCH" OR SHIP:STATUS "LANDED"). {
+	// scrollPrint("T+"+ROUND(MET(),1)+" ship already launched!").
+	// SET launchComplete TO TRUE.
+	// END_LAUNCH().
+// }
 
 //Is orbit clear of atmosphere
 IF tarAlt*(1-orbitError/100)<atmTop {
@@ -60,7 +69,7 @@ IF tarAlt*(1-orbitError/100)<atmTop {
     PRINT "Use ctrl+c to cancel program and try again".
     PRINT " ".
     WAIT UNTIL False.
-}.
+}
 
 // Make sure all launch clamps are on a single stage
 SET launchClampStage TO 999.
@@ -74,9 +83,9 @@ FOR p in SHIP:PARTS {
             PRINT "Use ctrl+c to cancel program and try again".
             PRINT " ".
             WAIT UNTIL False.          
-        }.
-    }.
-}.
+        }
+    }
+}
 
 //inclincation check
 IF ABS(tarInc) < FLOOR(ABS(LATITUDE)) OR ABS(tarInc) > (180 - CEILING(ABS(LATITUDE))) {
@@ -87,7 +96,7 @@ IF ABS(tarInc) < FLOOR(ABS(LATITUDE)) OR ABS(tarInc) > (180 - CEILING(ABS(LATITU
     PRINT "Use ctrl+c to cancel program and try again".
     PRINT " ".
     WAIT UNTIL False.
-}.
+}
 	
 
 //intial state (courtesy /u/only_to_downvote
@@ -102,20 +111,20 @@ IF logVerboseData {
     LOG 1 TO launchDataLog.csv. DELETEPATH("launchDataLog.csv").
     // Verbose data log header
     LOG "M.E.T. [s], Sea Level Altitude [m], Radar Altitude [m], Latitude [deg], Longitude [deg], Surface Velocity [m/s], Orbital Velocity [m/s], Vertical Speed [m/s], Ground Speed [m/s], Apoapsis [m], Time to Apoapsis [s], Periapsis [m], Time to Periapsis [s], Inclination [deg], Mass [t], Max Thrust [kN], Current Thrust [kN], T.W.R., % Terminal Velocity, Trajectory Preferred Pitch [deg], Pitch Command [deg], Vessel Pitch [deg], Heading Command [deg], Vessel Heading [deg], dv Spent [m/s], Dynamic Pressure [kPa]" TO launchDataLog.csv.
-}.
+}
 //Scrolling print setup
-SET printList TO LIST().
-FUNCTION scrollPrint {
-    DECLARE PARAMETER nextPrint.
-    printList:ADD(nextPrint).
-    UNTIL printList:LENGTH <= maxLinesToPrint {printList:REMOVE(0).}.
-    LOCAL currentLine IS listLineStart.
-    FOR printLine in printList {
-        PRINT "                                                 " AT (0,currentLine).
-        PRINT printLine AT (0,currentLine).
-        SET currentLine TO currentLine+1.
-    }.
-}.
+// SET printList TO LIST().
+// FUNCTION scrollPrint {
+    // DECLARE PARAMETER nextPrint.
+    // printList:ADD(nextPrint).
+    // UNTIL printList:LENGTH <= maxLinesToPrint {printList:REMOVE(0).}.
+    // LOCAL currentLine IS listLineStart.
+    // FOR printLine in printList {
+        // PRINT "                                                 " AT (0,currentLine).
+        // PRINT printLine AT (0,currentLine).
+        // SET currentLine TO currentLine+1.
+    // }
+// }
 
 // solid motor info for current stage (used for ullage staging operations)
 FUNCTION stageSolidInfo {
@@ -133,12 +142,12 @@ FUNCTION stageSolidInfo {
                     LOCAL mdot IS thrust/(isp*9.81). IF mdot = 0 SET mdot TO 0.001.
                     LOCAL burnTime IS (r:AMOUNT*0.0075)/mdot.
                     IF burnTime < solidMinBurnTime SET solidMinBurnTime TO burnTime.
-                }.
-            }.
-        }.
-    }.
+                }
+            }
+        }
+    }
     RETURN LIST(solidMinBurnTime, solidTotalThrust).
-}.
+}
 	
 FUNCTION activeEngineInfo {
     // ## should technically be updated to account for engines not pointing directly aft
@@ -151,20 +160,20 @@ FUNCTION activeEngineInfo {
             SET maxT TO maxT + eng:AVAILABLETHRUST.
             SET currentT TO currentT + eng:THRUST.
             IF NOT eng:ISP = 0 SET mDot TO mDot + currentT / eng:ISP.
-        }.
-    }.
+        }
+    }
     IF mDot = 0 LOCAL avgIsp IS 0.
     ELSE LOCAL avgIsp IS currentT / mDot.
     RETURN LIST(currentT, maxT, avgIsp, mDot).
-}.	
+}	
 
 // Stage dV calc
 FUNCTION deltaVstage {
     FOR p in SHIP:PARTS {
         IF p:MODULES:CONTAINS("CModuleFuelLine") {
             RETURN -1. // Unable to calculate deltaV if fuel lines complicate fuel flow pattern.
-        }.
-    }.
+        }
+    }
 	LOCAL fuelMass IS STAGE:LIQUIDFUEL*0.005 + STAGE:OXIDIZER*0.005 + STAGE:SOLIDFUEL*0.0075.
 	   
     // thrust weighted average isp
@@ -176,8 +185,8 @@ FUNCTION deltaVstage {
             LOCAL t IS eng:AVAILABLETHRUST.
             SET thrustTotal TO thrustTotal + t.
             IF eng:ISP <> 0 SET mDotTotal TO  mDotTotal + (t / eng:ISP).
-        }.
-    }.
+        }
+    }
     IF mDotTotal <> 0 LOCAL avgIsp IS thrustTotal/mDotTotal.
     ELSE LOCAL avgIsp IS 0.
        
@@ -185,7 +194,7 @@ FUNCTION deltaVstage {
     LOCAL deltaV IS avgIsp*9.81*ln(SHIP:MASS / (SHIP:MASS-fuelMass)).
    
     RETURN deltaV.
-}.
+}
 
 // required kOS lib functions included here for keeping program in a single file
 function compass_for {
@@ -205,12 +214,12 @@ function compass_for {
   else {
     return result.
   }
-}.
+}
 function pitch_for {
   parameter ves.
  
   return 90 - vang(ves:up:vector, ves:facing:forevector).
-}.
+}
 
 //Loop Start
 SET WARPMODE TO "PHYSICS".
@@ -267,7 +276,7 @@ PRINT "  [km]          |  [km]          | [deg]" AT (0,5).
 PRINT "----------------+----------------+----------------" AT (0,6).
 PRINT "Apoap.          |Periap.         |  TWR" AT (0,7).
 PRINT " [km]           | [km]           |Max TWR" AT (0,8).
-PRINT " (ETA)          | (ETA)          |% Term V" AT (0,9).
+PRINT " (ETA)          | (ETA)          |Runmode" AT (0,9).
 PRINT "----------------+----------------+----------------" AT (0,10).
 PRINT " Total          | Stage          | Spent" AT (0,11).
 PRINT "Vac. dV         |  dV            |  dV" AT (0,12).
@@ -278,10 +287,10 @@ IF SHIP:BODY:ATM:EXISTS {
     WHEN ALTITUDE > atmTop*0.95 THEN {
         TOGGLE AG8.
         SET numParts TO SHIP:PARTS:LENGTH.
-        printList:ADD("T+"+ROUND(MET,1)+" Fairing/LES separation").
-        LOG ("T+"+ROUND(MET,1)+" Fairing separation") TO launchLog.txt.
-    }.
-}.
+        printList:ADD("T+"+ROUND(MET(),1)+" Fairing/LES separation").
+        LOG ("T+"+ROUND(MET(),1)+" Fairing separation") TO launchLog.txt.
+    }
+}
 
 // Calculate launch azimuth
 SET inertialAzimuth TO ARCSIN(MAX(MIN(COS(tarInc) / COS(launchLoc:LAT),1),-1)).
@@ -307,7 +316,7 @@ UNTIL launchComplete {
             SAS ON.
             scrollPrint("T-5.0 Launch stability assist system activated").
             SET tMin5 TO FALSE.
-        }.
+        }
        
         IF MET >= -4 AND tMin4 {
             PRINT "4   4 " AT (43,35).
@@ -316,7 +325,7 @@ UNTIL launchComplete {
             PRINT "    4 " AT (43,38).
             PRINT "    4 " AT (43,39).
             SET tMin4 TO FALSE.
-        }.
+        }
        
         IF NOT firstStageAllSolid {
             IF engInfo[0] < 0.95*engInfo[1] { // require current thrust > 95% max thrust to launch
@@ -324,12 +333,12 @@ UNTIL launchComplete {
             }
             ELSE {
                 IF runOnce2 {
-                    scrollPrint("T"+ROUND(MET,1)+" Main engine at full thrust").
+                    scrollPrint("T"+ROUND(MET(),1)+" Main engine at full thrust").
                     SET runOnce2 TO False.
-                }.
+                }
                 SET tMinHold TO False.
-            }.
-        }.
+            }
+        }
        
         IF MET >= -3 AND tMin3 {
             PRINT "33333 " AT (43,35).
@@ -343,10 +352,10 @@ UNTIL launchComplete {
                     FOR resource IN p:RESOURCES {
                         IF liquidFuelResources:CONTAINS(resource:NAME) {
                             SET firstStageAllSolid TO False.
-                        }.
-                    }.
-                }.
-            }.
+                        }
+                    }
+                }
+            }
             IF firstStageAllSolid {
                 SET tMin3 TO FALSE.
             }
@@ -357,8 +366,8 @@ UNTIL launchComplete {
                 scrollPrint("T-3.0 Main engine ignition sequence begin").
                 LOCK tset TO (TIME:SECONDS-ignitionTime)/2.
                 SET tMin3 TO FALSE.
-            }.
-        }.
+            }
+        }
        
         IF MET >= -2 AND tMin2 {
             PRINT " 2222 " AT (43,35).
@@ -367,7 +376,7 @@ UNTIL launchComplete {
             PRINT "22    " AT (43,38).
             PRINT "222222" AT (43,39).
             SET tMin2 TO FALSE.
-        }.
+        }
        
         IF MET >= -1 AND tMin1 {
             PRINT "  11  " AT (43,35).
@@ -376,7 +385,7 @@ UNTIL launchComplete {
             PRINT "   1  " AT (43,38).
             PRINT " 11111" AT (43,39).  
             SET tMin1 TO FALSE.
-        }.
+        }
        
         IF MET >= -0.1 AND tMinHold {
             PRINT " HOLD " AT (43,35).
@@ -387,10 +396,10 @@ UNTIL launchComplete {
             IF runOnce {
                 SET runOnce TO False.
                 scrollPrint("T-X.X HOLD - Waiting for engines to spool up").
-            }.
+            }
             SET launchTime TO TIME:SECONDS+0.1.
             SET tset to 1.
-        }.
+        }
        
         IF MET >= 0 AND tMin0 {
             SET tSet to 1.
@@ -398,16 +407,16 @@ UNTIL launchComplete {
             SET numParts TO SHIP:PARTS:LENGTH.
             IF STAGE:SOLIDFUEL > 0 {
                 scrollPrint("T-0.0 SRB Ignition").
-            }.
+            }
             scrollPrint("T+0.0 Liftoff!").
             SET runMode to 0.
             SET tMin0 TO FALSE.
-        }.
+        }
        // One-time actions before initiating vertical ascent
         IF runMode = 0 {
             WAIT 0.
             SET launchTime TO TIME:SECONDS.
-            LOCK MET TO TIME:SECONDS-launchTime.
+            // LOCK MET TO TIME:SECONDS-launchTime.
             SET logTime TO launchTime+logTimeIncrement.
             SET engInfo TO activeEngineInfo().
             SET launchTWR TO engInfo[1]/(SHIP:MASS*BODY:MU/(ALTITUDE+BODY:RADIUS)^2).
@@ -421,23 +430,24 @@ UNTIL launchComplete {
             IF autoAscent { // Auto adjust pitch based on TWR
                 SET trnEnd TO 0.128*atmTop*launchTWR + 0.5*atmTop. // Based on testing
                 SET turnExponent TO MAX(1/(2.5*launchTWR - 1.7), 0.25). // Based on testing
-                printList:ADD("T+"+ROUND(MET,1)+" Using auto ascent trajectory with paramaters:").
+                printList:ADD("T+"+ROUND(MET(),1)+" Using auto ascent trajectory with paramaters:").
                 printList:ADD("        Turn End Alt. = "+ROUND(trnEnd)).
                 scrollPrint("        Turn Exponent = "+ROUND(turnExponent,3)).
-            }. 
-        }.
-    }.   
+            } 
+        }
+    }   
 // Initial vertical ascent to clear support structures
     IF runMode = 0 {
         PRINT "Initial vertical ascent" AT (17,0).
         IF WARP > 1 SET WARP TO 1. // limit physwarp to 2x for code stability
         IF ALT:RADAR > trnStart AND SHIP:AIRSPEED > 75 {
             SET runMode TO 1.
-            scrollPrint("T+"+ROUND(MET,1)+" Launch site cleared, starting ascent guidance").
+            scrollPrint("T+"+ROUND(MET(),1)+" Launch site cleared").
+			scrollPrint("T+"+ROUND(MET(),1)+" Starting ascent guidance").
             SAS OFF.
             LOCK STEERING TO steerTo.
-        }.
-    }.
+        }
+    }
 	// Ascent trajectory program until reach desired apoapsis  
     IF runMode = 1 {
         PRINT "Ascent Guidamce        " AT (17,0).
@@ -466,12 +476,12 @@ UNTIL launchComplete {
                     }
                     ELSE {
                         SET steerHeading TO (90-tarInc) + 2*(ABS(tarInc) - SHIP:OBT:INCLINATION).
-                    }.
+                    }
                 }
                 ELSE IF tarInc < 0 {
                     SET steerHeading TO (90-tarInc) + 2*(ABS(tarInc) - SHIP:OBT:INCLINATION).
-                }.
-            }.
+                }
+            }
 			
 			SET ascentSteer TO HEADING(steerHeading, steerPitch).
 						
@@ -482,58 +492,53 @@ UNTIL launchComplete {
             IF angleToPrograde > angleLimit {
                 SET ascentSteerLimited TO (angleLimit/angleToPrograde * (ascentSteer:VECTOR:NORMALIZED - SHIP:SRFPROGRADE:VECTOR:NORMALIZED)) + SHIP:SRFPROGRADE:VECTOR:NORMALIZED.
                 SET ascentSteer TO ascentSteerLimited:DIRECTION.
-            }.
-        }.
+            }
+        }
         SET steerTo TO ascentSteer.
 		
 		IF NOT stagingInProgress {
             SET tset TO 1.
             SET pctTerminalVel TO "N/A".
-        }.     
+        }     
        
         // Ascent mode end conditions
         IF APOAPSIS >= tarAlt {
             SET tset TO 0.
             SET trajectoryPitch TO 0.
             SET steerPitch TO 0.
-            scrollPrint("T+"+ROUND(MET,1)+" Desired apoapsis reached").
+            scrollPrint("T+"+ROUND(MET(),1)+" Desired apoapsis reached").
             SET pctTerminalVel TO "N/A".
             IF ALTITUDE < atmTop {
                 SET runMode TO 2.
-                scrollPrint("T+"+ROUND(MET,1)+" Steering prograde until out of atmosphere").
+                scrollPrint("T+"+ROUND(MET(),1)+" Steering prograde until out of atmosphere").
             }
             ELSE {
                 SET runMode TO 3.
-            }.
-        }.
-    }.
+            }
+        }
+    }
 // Coast out of atmosphere 
     IF runMode = 2 {
         PRINT "Coast out of atmosphere  " AT (17,0).
         IF WARP > 1 SET WARP TO 1. // limit physwarp to 2x for code stability
         SET steerTo TO SHIP:SRFPROGRADE.
-<<<<<<< HEAD
         //cheaty atmosphere loss
-			IF APOAPSIS >= tarAp {SET tset TO 0. }
-			IF APOAPSIS < tarAp {SET tset TO (tarAp-APOAPSIS)/(tarAp*0.01).}
-		IF ALTITUDE > atmTop {SET runMode TO 3.}.
-=======
-		UNTIL ALTITUDE >= altTop {		    // cheaty coast burn to keep target apoapsis
-			IF APOAPSIS >= tarAlt { SET tset TO 0. }
-			IF APOAPSIS < tarAlt { SET tset TO (tarAlt-APOAPSIS)/(tarAlt*0.01). }	
-        IF ALTITUDE > atmTop {
-            SET runMode TO 3.
-        }.
->>>>>>> launch-dev
-	}.
+			IF APOAPSIS >= tarAlt {SET tset TO 0. }
+			IF APOAPSIS < tarAlt {SET tset TO (tarAlt-APOAPSIS)/(tarAlt*0.01).}
+		IF ALTITUDE > atmTop {
+		SET runMode TO 3.
+		}.
+	}
 	
-	// Circularization burn maneuver node setup
+	// circularization node and warp
     IF runMode = 3 {
-        SET tset TO 0.
+        SET WARP TO 0.
+		SET tset TO 0.
 		MNV_APONODE(tarAlt).
+		SET nodeDeltaV TO brnDV.
         SET runMode TO 4.
-        scrollPrint("T+"+ROUND(MET,1)+" Steering to maneuver node").
-    }.
+        scrollPrint("T+"+ROUND(MET(),1)+" Steering to maneuver node").
+    }
  
  // One time check to decouple stage if nearly depleted
     IF runMode = 4 {
@@ -542,103 +547,34 @@ UNTIL launchComplete {
         IF stageDeltaV > 0 { // dV alculator returns -1 if unable to calculate
             IF (stageDeltaV < nodeDeltaV*0.5 AND nodeDeltaV > 200) OR stageDeltaV < 100 {
                 SET triggerStage TO True.
-                scrollPrint("T+"+ROUND(MET,1)+" Low fuel in stage, separating").
-            }.
-        }.
-    }.
+                scrollPrint("T+"+ROUND(MET(),1)+" Low fuel in stage, separating").
+            }
+        }
+    }
 	  
 // Potential waiting on staging action if triggered
     IF runMode = 4.5 {
         SET tset TO 0.
         IF NOT (triggerStage OR stagingInProgress OR SHIP:MAXTHRUST < 0.01) {
-            SET runMode TO 5.
-            SET burnTime TO nodeDeltaV/(SHIP:AVAILABLETHRUST/SHIP:MASS).
-            SET leadTime to 0.5*burnTime.          
-        }.
-    }.
+            SET runMode TO 5.         
+        }
+    }
    
 // Steer to maneuver node  
     IF runMode = 5 {
-        SET tset TO 0.
-        PRINT "Steer to burn node       " AT (17,0).
-        IF WARP > 0 {SET WARP TO 0.}. // enforce warp 0 in case user previously set physwarp so runmode 6 will be timewarp not physwarp
-        SET steerTo TO burnNode.
-        SET stErrX TO burnNode:BURNVECTOR:NORMALIZED:X - FACING:VECTOR:NORMALIZED:X.
-        SET stErrY TO burnNode:BURNVECTOR:NORMALIZED:Y - FACING:VECTOR:NORMALIZED:Y.
-        SET stErrZ TO burnNode:BURNVECTOR:NORMALIZED:Z - FACING:VECTOR:NORMALIZED:Z.
-        SET stErr TO sqrt(stErrX^2+stErrY^2+stErrZ^2).
-        IF useWarp {
-            IF stErr < 0.01 {
-                SET runMode TO 6.
-                scrollPrint("T+"+ROUND(MET,1)+" Warping to ignition time").
-                SET failedToSteer TO False.
-            }
-            ELSE IF burnNode:ETA <=leadtime {
-                SET runMode TO 8.
-                printList:ADD("T+"+ROUND(MET,1)+" Failed to steer to node before burn start").
-                scrollPrint("        Igniting engines and hoping for the best").
-                SET failedToSteer TO True.
-                SET tset TO 1.
-            }.
-        }
-        ELSE IF NOT useWarp {
-            IF burnNode:ETA <= leadtime {
-                SET runMode TO 8.
-                IF stErr < 0.1 {SET failedToSteer TO False.}.
-                ELSE {SET failedToSteer TO True.}.
-            }.
-        }.
-    }.
+		MNV_WARPNODE(runMode, useWarp).
+ 		HUDTEXT(runmode, 5, 2, 15, red, false).
+    }
    
-// Warp to node
-    IF runMode = 6 {
-        SET tset TO 0.
-        PRINT "Warping to ignition time   " AT (17,0).
-        SET WARPMODE TO "RAILS".
-        WARPTO(TIME:SECONDS + burnNode:ETA - leadTime - 10). // 10 second buffer
-        SET runMode TO 7.
-    }.
-// Wait for warp
-    IF runMode = 7 {
-        SET tset TO 0.
-        IF burnNode:ETA <= leadTime {
-            SET tset TO 1.
-            SET runMode TO 8.
-            scrollPrint("T+"+ROUND(MET,1)+" Executing circularization maneuver").
-        }.
-        ELSE SET steerTo TO burnNode.
-    }.
-   
+
 // Apoapsis circularization maneuver execution 
     IF runMode = 8 {
-        PRINT "Executing circularization burn" AT (17,0).
-        LOCK burnTimeRemaining TO burnNode:DELTAV:MAG/MAX(AVAILABLETHRUST/SHIP:MASS,0.001).
-        // Stage if staging required before burn end and would put debris in orbit ### TODO
-        IF burnTimeRemaining > 2 {
-            SET tset TO 1.
-            SET steerTo TO burnNode.
-            IF failedToSteer AND APOAPSIS > (1+orbitErrorThreshold/100)*tarAlt AND PERIAPSIS > atmTop {
-                printList:ADD("T+"+ROUND(MET,1)+" Overshot apoapsis, but in stable orbit").
-                scrollPrint("        Stopping circularization burn now").
-                SET tset TO 0.
-                SET launchComplete TO True.
-            }.
-        }
-        ELSE {
-            UNLOCK STEERING.
-            SAS ON.
-            scrollPrint("T+"+ROUND(MET,1)+" Burn nearly complete, timing remainder").
-            wait 0.001.
-            SET finalBurnTime TO burnTimeRemaining - 0.1. // -0.1s time adjustment based on testing.
-            SET burnEndTime TO TIME:SECONDS + finalBurnTime.
-            WAIT UNTIL TIME:SECONDS > burnEndTime.
-            SET tset TO 0.
-            UNLOCK burnTimeRemaining.
-            scrollPrint("T+"+ROUND(MET,1)+" Circularization burn complete").
-            SET launchComplete TO True.
-        }.
-       
-    }.
+		PRINT "Executing circularization burn" AT (17,0).
+		MNV_EXENODE(runMode).
+		IF runMode = 9 {
+			SET launchComplete TO True.
+		}    
+    }
    
 // Perform abort if determined necessary
     IF runMode = 666 {
@@ -646,10 +582,10 @@ UNTIL launchComplete {
         SET SHIP:CONTROL:NEUTRALIZE TO True.
         SAS ON.
         TOGGLE ABORT.
-        scrollPrint("T+"+ROUND(MET,1)+" ~~~~~Launch aborted!~~~~~").
+        scrollPrint("T+"+ROUND(MET(),1)+" ~~~~~Launch aborted!~~~~~").
         HUDTEXT("Launch Aborted!",5,2,100,RED,False).
         BREAK.
-    }.
+    }
        
 //Continuous staging check logic
     IF runMode > 0 {
@@ -668,7 +604,7 @@ UNTIL launchComplete {
                     ELSE IF eng:FLAMEOUT AND MAXTHRUST >= 0.1 {
                         SET flameoutDetect TO True.
                         SET stagingInProgress TO True.
-                        scrollPrint("T+"+ROUND(MET,1)+" Booster shutdown detected").
+                        scrollPrint("T+"+ROUND(MET(),1)+" Booster shutdown detected").
                         SET boostStageTime TO TIME:SECONDS+boosterStageDelay.
                         BREAK.
                     }
@@ -677,41 +613,41 @@ UNTIL launchComplete {
                         SET flameoutDetect TO True.
                         SET stagingInProgress TO True.
                         SET tset TO 0.
-                        scrollPrint("T+"+ROUND(MET,1)+" Stage "+currentStageNum+" shutdown detected").
+                        scrollPrint("T+"+ROUND(MET(),1)+" Stage "+currentStageNum+" shutdown detected").
                         SET stageTime TO TIME:SECONDS+stageDelay.
                         BREAK. 
-                    }.
-                }.
-            }.
+                    }
+                }
+            }
             IF ullageShutdown {            
                 SET ullageDetect TO False.
                 SET ullageShutdown TO False.
-                scrollPrint("T+"+ROUND(MET,1)+" Ullage shutdown").
-            }.
+                scrollPrint("T+"+ROUND(MET(),1)+" Ullage shutdown").
+            }
             // Drop tanks empty detection
             // IF NOT(flameoutDetect) {
                     // ## TODO
                     // SET dropTanksEmpty TO True.
-            // }.
-        }.
+            // }
+        }
        
         // Staging triggered elsewhere in code
         IF triggerStage {
             SET tset TO 0.
-            scrollPrint("T+"+ROUND(MET,1)+" Staging triggered").
+            scrollPrint("T+"+ROUND(MET(),1)+" Staging triggered").
             SET stageTime TO TIME:SECONDS+stageDelay.
             SET triggerStage TO False.
             SET stagingInProgress TO True.
-        }.     
+        }     
        
         // Booster staging (after specified delay)
         IF TIME:SECONDS >= boostStageTime {
             STAGE.
             SET numParts TO SHIP:PARTS:LENGTH.
-            scrollPrint("T+"+ROUND(MET,1)+" Booster separation").
+            scrollPrint("T+"+ROUND(MET(),1)+" Booster separation").
             SET boostStageTime TO TIME:SECONDS+100000.
             SET stagingInProgress TO False.
-        }.
+        }
        
         // Full staging
         IF TIME:SECONDS >= stageTime {
@@ -719,15 +655,15 @@ UNTIL launchComplete {
             SET numParts TO SHIP:PARTS:LENGTH.
             // drop tank release
             IF dropTanksEmpty {
-                scrollPrint("T+"+ROUND(MET,1)+" Drop tanks released").
+                scrollPrint("T+"+ROUND(MET(),1)+" Drop tanks released").
                 SET stageTime TO TIME:SECONDS+100000.
                 SET dropTanksEmpty TO False.
-            }.
+            }
             // Detect ullage motor ignition
             SET stageSolidFuelMass TO 0.0075*STAGE:SOLIDFUEL.
             IF stageSolidFuelMass < 0.05*SHIP:MASS AND stageSolidFuelMass > 0 {
                 SET ullageDetect TO True.
-                scrollPrint("T+"+ROUND(MET,1)+" Ullage motor ignition detected").
+                scrollPrint("T+"+ROUND(MET(),1)+" Ullage motor ignition detected").
                 LOCAL temp IS stageSolidInfo().
                 SET ullageTime TO temp[0] + TIME:SECONDS.
                 IF temp[0] = 99999 SET ullageDetect TO False. //should never happen, but just in case
@@ -738,18 +674,18 @@ UNTIL launchComplete {
             }
             // Detect separation only (ignition on the next stage)
             ELSE IF SHIP:MAXTHRUST < 0.01 {
-                scrollPrint("T+"+ROUND(MET,1)+" Stage "+currentStageNum+" separation").
+                scrollPrint("T+"+ROUND(MET(),1)+" Stage "+currentStageNum+" separation").
                 SET stageTime TO TIME:SECONDS+stageDelay.
             }  
             // Ignite next stage if already primed by separation action
             ELSE IF SHIP:MAXTHRUST >= 0.01 AND NOT ullageDetect {
                 IF runMode = 1 OR runMode = 8 SET tset TO 1. // don't ignite if coasting
                 SET currentStageNum TO currentStageNum+1.
-                scrollPrint("T+"+ROUND(MET,1)+" Stage "+currentStageNum+" ignition").
+                scrollPrint("T+"+ROUND(MET(),1)+" Stage "+currentStageNum+" ignition").
                 SET stageTime TO TIME:SECONDS+100000.
                 SET stagingInProgress TO False.
-            }.
-        }.
+            }
+        }
        
         // Ullage staging
         IF TIME:SECONDS >= (ullageTime - 1) { //start engines 1s before ullage engines stop
@@ -757,15 +693,15 @@ UNTIL launchComplete {
                 WAIT UNTIL STAGE:READY.
                 STAGE.
                 SET ullageStageNeeded TO False.
-            }.
+            }
             IF runMode = 1 OR runMode = 8 SET tset TO 1.
             SET currentStageNum TO currentStageNum+1.
-            scrollPrint("T+"+ROUND(MET,1)+" Stage "+currentStageNum+" ignition").
+            scrollPrint("T+"+ROUND(MET(),1)+" Stage "+currentStageNum+" ignition").
             SET stageTime TO TIME:SECONDS+100000.
             SET ullageTime TO TIME:SECONDS+100000.
             SET stagingInProgress TO False.    
-        }.
-    }.
+        }
+    }
        
 //Continuous abort detection logic
  
@@ -774,37 +710,37 @@ UNTIL launchComplete {
         IF runMode = 1 {
             IF VANG(SHIP:FACING:VECTOR, steerTo:VECTOR) > 45 AND MET > 5 {
                 SET runMode TO 666.
-                scrollPrint("T+"+ROUND(MET,1)+" Ship lost steering control!").
-            }.
-        }.
+                scrollPrint("T+"+ROUND(MET(),1)+" Ship lost steering control!").
+            }
+        }
        
         // Abort if falling back toward surface (i.e. insufficient thrust)
         IF runMode < 3 AND runMode >= 0 AND VERTICALSPEED < -1.0 {
             SET runMode TO 666.
-            scrollPrint("T+"+ROUND(MET,1)+" Insufficient vertical velocity!").
-        }.
+            scrollPrint("T+"+ROUND(MET(),1)+" Insufficient vertical velocity!").
+        }
        
         // Abort if # parts less than expected (i.e. ship breaking up)
         IF SHIP:PARTS:LENGTH < numParts AND STAGE:READY {
             SET runMode TO 666.
-            scrollPrint("T+"+ROUND(MET,1)+" Ship breaking apart!").
-        }.
+            scrollPrint("T+"+ROUND(MET(),1)+" Ship breaking apart!").
+        }
        
         // Abort if number of re-boost are too many (i.e. too shallow trajectory)
         IF numReboost > maxNumReboost {
             SET runMode TO 666.
-            scrollPrint("T+"+ROUND(MET,1)+" Too many re-boosts, trajectory poor").
-        }.
+            scrollPrint("T+"+ROUND(MET(),1)+" Too many re-boosts, trajectory poor").
+        }
        
         // Perform abort if insufficient total deltaV vs deltaV to orbit ###TODO
-    }.
+    }
    
 // Continuous informational printouts
     PRINT ROUND(ALTITUDE/1000,2)+" "   AT (8,4).
     SET downRangeDist TO SQRT(launchLoc:Distance^2 - (ALTITUDE-launchAlt)^2). // #@ should update to use curvature
     PRINT ROUND(downRangeDist/1000,2)+" " AT (25,4).
     PRINT ROUND(SHIP:OBT:INCLINATION,1)+"  " AT (44,4).
-    PRINT ROUND(APOAPSIS/1000,2)+" " AT (8,8).
+    PRINT ROUND(APOAPSIS/1000,2)+"   " AT (8,8).
     PRINT ROUND(ETA:APOAPSIS) + "s " AT (9,9).
     PRINT ROUND(PERIAPSIS/1000,2)+"  " AT (24,8).
     PRINT ROUND(ETA:PERIAPSIS) + "s " AT (26,9).
@@ -814,11 +750,11 @@ UNTIL launchComplete {
     PRINT ROUND(currentTWR,2)+"   " AT (44,7).
     PRINT ROUND(maxTWR,2) + "  " AT (44,8).
     IF pctTerminalVel = "N/A" OR pctTerminalVel = "NoAcc" {
-        PRINT pctTerminalVel + "  " AT (44,9).
-    }.
+        PRINT runMode + "  " AT (44,9).
+    }
     ELSE {
-        PRINT ROUND(pctTerminalVel,0) + "  " AT (44,9).
-    }.
+        PRINT ROUND(runmode,0) + "  " AT (44,9).
+    }
     SET shipDeltaV TO "TBD". // ## TODO
     PRINT shipDeltaV AT (9,12).
     SET stageDeltaV TO deltaVStage().
@@ -829,33 +765,33 @@ UNTIL launchComplete {
     }
     ELSE IF finalBurnTime > 0 {
         SET dVSpent TO dVSpent + ((engInfo[1]/SHIP:MASS) * finalBurnTime).
-    }.
+    }
     PRINT ROUND(dVSpent,0) + "   " AT (44,12).
    
 //Periodic logging of progress
     IF TIME:SECONDS > logTime {
-        printList:ADD("T+"+ROUND(MET,0)+" Velocity = "+ROUND(VELOCITY:ORBIT:MAG,2)+" m/s").
+        printList:ADD("T+"+ROUND(MET(),0)+" Velocity = "+ROUND(VELOCITY:ORBIT:MAG,2)+" m/s").
         printList:ADD("      Altitude = "+ROUND(ALTITUDE/1000,2)+" km").
         scrollPrint("      Downrange distance = "+ROUND(downRangeDist/1000,2)+" km").
         IF runMode < 3 {SET logTime TO logTime + logTimeIncrement.}.
         ELSE IF runMode < 6 {SET logTime TO logTime + 2*logTimeIncrement.}.
         ELSE SET logTime TO logTime + 4*logTimeIncrement.
-    }. 
+    } 
    
 // Verbose data logging if requested
     IF logVerboseData and TIME:SECONDS >= verboseLogTime { 
-    LOG MET+", "+ALTITUDE+", "+ALT:RADAR+", "+LATITUDE+", "+LONGITUDE+", "+SHIP:AIRSPEED+", "+VELOCITY:ORBIT:MAG+", "+VERTICALSPEED+", "+GROUNDSPEED+", "+APOAPSIS+", "+ETA:APOAPSIS+", "+PERIAPSIS+", "+ETA:PERIAPSIS+", "+SHIP:OBT:INCLINATION+", "+SHIP:MASS+", "+engInfo[1]+", "+engInfo[0]+", "+currentTWR+", "+pctTerminalVel+", "+trajectoryPitch+", "+steerPitch+", "+pitch_for(SHIP)+", "+steerHeading+", "+compass_for(SHIP)+", "+dVSpent+", "+SHIP:Q TO launchDataLog.csv.
+    LOG MET()+", "+ALTITUDE+", "+ALT:RADAR+", "+LATITUDE+", "+LONGITUDE+", "+SHIP:AIRSPEED+", "+VELOCITY:ORBIT:MAG+", "+VERTICALSPEED+", "+GROUNDSPEED+", "+APOAPSIS+", "+ETA:APOAPSIS+", "+PERIAPSIS+", "+ETA:PERIAPSIS+", "+SHIP:OBT:INCLINATION+", "+SHIP:MASS+", "+engInfo[1]+", "+engInfo[0]+", "+currentTWR+", "+pctTerminalVel+", "+trajectoryPitch+", "+steerPitch+", "+pitch_for(SHIP)+", "+steerHeading+", "+compass_for(SHIP)+", "+dVSpent+", " TO launchDataLog.csv.
     SET verboseLogTime TO TIME:SECONDS + verboseLogIncrement.
-    }.
-}.
+    }
+}
 // Main loop end
  
 SET tset TO 0.
 UNLOCK STEERING.
  
 IF launchComplete {
-    remove burnNode.
-    printList:ADD("T+"+ROUND(MET,1)+" Orbit achieved").
+    REMOVE burnNode.
+    printList:ADD("T+"+ROUND(MET(),1)+" Orbit achieved").
     printList:ADD("-------------------------------------------").
     printList:ADD(" Final apoapsis = "+ROUND(APOAPSIS/1000,2)+
         " km, Error = "+ROUND(ABS(tarAlt-APOAPSIS)/1000,2)+" km").
@@ -869,4 +805,24 @@ IF launchComplete {
 }
 ELSE {
     scrollPrint("Program terminating").
-}.
+}
+
+FUNCTION END_LAUNCH {
+    IF launchComplete {
+	REMOVE burnNode.
+    printList:ADD("T+"+ROUND(MET(),1)+" Orbit achieved").
+    printList:ADD("-------------------------------------------").
+    printList:ADD(" Final apoapsis = "+ROUND(APOAPSIS/1000,2)+
+        " km, Error = "+ROUND(ABS(tarAlt-APOAPSIS)/1000,2)+" km").
+    printList:ADD(" Final periapsis = "+ROUND(PERIAPSIS/1000,2)+
+        " km, Error = "+ROUND(ABS(tarAlt-PERIAPSIS)/1000,2)+" km").
+    printList:ADD(" Final inclination = "+ROUND(SHIP:OBT:INCLINATION,1)+
+        " deg, Error = "+ROUND(ABS(ABS(tarInc)-SHIP:OBT:INCLINATION),1)+" deg").
+    printList:ADD(" Total dV spent = "+ROUND(dVSpent)+" m/s").
+    printList:ADD("-------------------------------------------").
+    scrollPrint("Program ended successfully").
+	}
+	ELSE {
+		scrollPrint("Program terminating").
+	}
+}
