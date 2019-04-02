@@ -503,7 +503,7 @@ UNTIL launchComplete {
     IF runMode = 3 {
         SET WARP TO 0.
 		SET tset TO 0.
-		MNV_NODE(tarAlt, ETA:APOAPSIS).
+		MNV_APONODE(tarAlt, ETA:APOAPSIS).
 		SET nodeDeltaV TO brnDV.
         SET runMode TO 4.
         scrollPrint("T+"+ROUND(MET(),1)+" Steering to maneuver node").

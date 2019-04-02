@@ -27,7 +27,7 @@ FUNCTION MNV_LEAD { //get lead time for node burns
 	RETURN brnTime.
 }
 
-FUNCTION MNV_NODE {
+FUNCTION MNV_APONODE {
 	PARAMETER tarAlt.
 	PARAMETER nETA.
 // create apoapsis maneuver node
@@ -55,9 +55,37 @@ FUNCTION MNV_NODE {
 	
 }
 
+FUNCTION MNV_NODE {
+	PARAMETER tarAlt.
+	PARAMETER nETA.
+// create apoapsis maneuver node
+	scrollPrint("T+"+ROUND(MET(),1)+" New maneuver, orbiting " + BODY:NAME).
+	scrollPrint("T+"+ROUND(MET(),1)+" Apoapsis: " + ROUND(APOAPSIS/1000) + "km").
+	scrollPrint("T+"+ROUND(MET(),1)+" Periapsis: " + ROUND(PERIAPSIS/1000) + "km -> " + ROUND(tarAlt/1000) + "km").
+// present orbit properties
+	SET curApoRad TO rb + APOAPSIS.	// current radius of apoapsis
+	SET curSMA TO SHIP:ORBIT:SEMIMAJORAXIS.	//current Semi-Major Axis
+	SET curVel TO SQRT(mu*((2/curApoRad)-(1/curSMA))). // Velocity at current apoapsis
+// future orbit properties
+	set tarSMA TO (curApoRad + tarAlt + rb)/2. // semi major axis target orbit
+	set tarVel TO SQRT(mu*(2/curApoRad-(1/tarSMA))).
+// setup node 
+	SET brnDV TO tarVel - curVel.
+	scrollPrint("T+"+ROUND(MET(),1)+" Engine burn: " + ROUND(curVel) + ", dv:" + ROUND(brnDV) + " -> " + ROUND(tarVel) + "m/s").
+	SET nd to NODE(TIME:SECONDS + nEta, 0, 0, brnDV).
+	ADD nd.
+	scrollPrint("T+"+ROUND(MET(),1)+" Node created.").
+	SET burnNode TO NEXTNODE.
+
+	PRINT "Steer to burn node       " AT (17,0).
+	
+	RETURN brnDV.
+}
+
+
 FUNCTION MNV_WARPNODE {
-	PARAMETER mnvRunMode.
-	PARAMETER useWarp.
+	PARAMETER mnvRunMode IS 0.
+	PARAMETER useWarp IS TRUE.
 	SET burnNode TO NEXTNODE.
 	MNV_LEAD().
 	SET failedToSteer TO TRUE.
