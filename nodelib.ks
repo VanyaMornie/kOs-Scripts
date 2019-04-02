@@ -13,28 +13,23 @@ FUNCTION MNV_LEAD { //get lead time for node burns
 	// What's our effective ISP?
 	SET eIsp TO 0.
 	LIST engines IN my_engines.
-	FOR eng IN my_engines {
-		SET eIsp TO eIsp + eng:maxthrust / maxthrust * eng:isp.
-	}
-
+	FOR eng IN my_engines {SET eIsp TO eIsp + eng:maxthrust / maxthrust * eng:isp.}
 	// What's our effective exhaust velocity?
-	SET Ve TO eIsp * 9.80665.
-
+	SET Ve TO eIsp * g0.
 	// What's our final mass?
 	SET final_mass TO mass*CONSTANT:e^(-1*nDV/Ve).
-
 	// Get our final acceleration.
 	SET a1 TO maxthrust / final_mass.
 	// All of that ^ just to get a1..
-
 	// Get the time it takes to complete the burn.
 	SET brnTime TO nDV/((a0 + a1)/2).
 
 	RETURN brnTime.
 }
 
-FUNCTION MNV_APONODE {
+FUNCTION MNV_NODE {
 	PARAMETER tarAlt.
+	PARAMETER nETA.
 // create apoapsis maneuver node
 	scrollPrint("T+"+ROUND(MET(),1)+" Apoapsis maneuver, orbiting " + BODY:NAME).
 	scrollPrint("T+"+ROUND(MET(),1)+" Apoapsis: " + ROUND(APOAPSIS/1000) + "km").
@@ -49,7 +44,7 @@ FUNCTION MNV_APONODE {
 // setup node 
 	SET brnDV TO tarVel - curVel.
 	scrollPrint("T+"+ROUND(MET(),1)+" Apoapsis burn: " + ROUND(curVel) + ", dv:" + ROUND(brnDV) + " -> " + ROUND(tarVel) + "m/s").
-	SET nd to NODE(TIME:SECONDS + ETA:APOAPSIS, 0, 0, brnDV).
+	SET nd to NODE(TIME:SECONDS + nEta, 0, 0, brnDV).
 	ADD nd.
 	scrollPrint("T+"+ROUND(MET(),1)+" Node created.").
 	SET burnNode TO NEXTNODE.
@@ -100,7 +95,7 @@ FUNCTION MNV_WARPNODE {
             }.
         }.
 	// Warp to node
-	IF failedToSteer = FALSE AND WARP = 0 {WARPTO(wrpCan).} // 10 warp if steering aligned
+	IF failedToSteer = FALSE AND WARP = 0 AND TIME:SECONDS < wrpCan {WARPTO(wrpCan).} // 10 warp if steering aligned
 	// Wait for warp
 			//scrollPrint("T+"+ROUND(MET(),1)+" brnTime " + ROUND(brnTime,0) + ", ETA " + burnNode:ETA).
 			SET tset TO 0.

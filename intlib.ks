@@ -46,7 +46,6 @@ FUNCTION INT_HOH {
 	//SET tgt TO TGTTYPE(tgt).
 	SET tgtR TO tgt:OBT:SEMIMAJORAXIS.
 	SET tgtAlt TO (tgt:OBT:SEMIMAJORAXIS)-rb.
-	PRINT tgtAlt.
 	TTIME(tgtR).
 	PRINT "Transit Time:" + ROUND(trTime).
 	SET tgtPer TO tgt:OBT:PERIOD.
@@ -62,12 +61,10 @@ FUNCTION INT_HOH {
 	SET ttAng TO ABS(dAng/trWs).
 	PRINT "T+"+mTime+" Intercept targeted with "+intAng+"deg shift".
 	SET msg TO "T+"+mTime+" Transfer burn in "+ttAng+"s".
-	PRINT msg.
-	NOTIFY(msg).
 	SET nd TO NODE(TIME:SECONDS+ttAng,0,0,dv1).
 	ADD nd.
-	MNV_EX_NODE(TRUE).
-	MNV_APONODE(TRUE, tgtAlt).
-	MNV_EX_NODE(TRUE).
+	// MNV_EX_NODE(TRUE).
+	// MNV_APONODE(TRUE, tgtAlt).
+	// MNV_EX_NODE(TRUE).
 	}
 		

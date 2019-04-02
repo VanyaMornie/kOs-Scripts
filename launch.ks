@@ -1,5 +1,5 @@
 //Launch Script
-//Written by /u/Elvander credit to /u/only_to_downvote
+//Written by /u/Elvander, much credit to /u/only_to_downvote
 
 //Usage
 //run launch(<desired apogee>,				//km (required)
@@ -16,15 +16,10 @@ PARAMETER trnStart IS 500.
 PARAMETER trnEnd IS 35000.
 PARAMETER turnExponent IS 0.7.
 
-REQUIRE("bodylib.ks"). //get properties of the body you're launching from
+REQUIRE("bodylib.ks").
 REQUIRE("nodelib.ks").
+REQUIRE("misclib.ks").
 //Variables
-SET b TO BODY:NAME.
-SET mu TO BODY:MU.
-SET rb TO BODY:RADIUS.
-SET soi TO BODY:SOIRADIUS.
-SET atmTop TO BODY:ATM:HEIGHT.
-SET maxTWR TO 1.75.
 SET tSet TO 0.
 SET tarAlt TO tarAlt*1000.
 SET orbitError TO 5.
@@ -43,26 +38,16 @@ SET allowAbort TO True. // whether or not to allow code to automatically trigger
 SET useWarp TO True. // whether or not to use timewarp to Apoapsis burn. Not recommended if using persistent rotation mod.
 SET logTimeIncrement TO 30. // base increment in seconds between periodic log entries; doubles while coasting, quadruples while timewarping)
 SET logVerboseData TO FALSE. // turn verbose data log on or off
-SET verboseLogIncrement TO 1.0. // time increment for verbose log
-SET orbitErrorThreshold TO 5. // percent error allowed in orbital apoapsis or periapsis  
+SET verboseLogIncrement TO 1.0. // time increment for verbose log // percent error allowed in orbital apoapsis or periapsis  
 SET maxNumReboost TO 3. // maximum number of times re-boost burn is allowed before aborting if apoapsis if falling
 SET limitToTermV TO False. // works for any atmosphere model, terminal V based on ship's forces, but generally not all that useful. Need very high TWR to break terminal velocity.
-SET maxq to 20000.
 SET autoAscent TO TRUE.
 
 //Error Checks
 
-//Have you launched already?
-
-// IF NOT (SHIP:STATUS "PRELAUNCH" OR SHIP:STATUS "LANDED"). {
-	// scrollPrint("T+"+ROUND(MET(),1)+" ship already launched!").
-	// SET launchComplete TO TRUE.
-	// END_LAUNCH().
-// }
-
-//Is orbit clear of atmosphere
+//Is orbit clear of atmosphere or highest peak
 IF tarAlt*(1-orbitError/100)<atmTop {
-    PRINT "Target orbit apopapsis of "+tarAlt*(1-orbitErrorThreshold/100)+"m  based on".
+    PRINT "Target orbit apopapsis of "+tarAlt*(1-orbitError/100)+"m  based on".
     PRINT "orbit error threshold is below atmosphere height".
     PRINT "of "+atmTop+"m".
     PRINT " ".
@@ -100,31 +85,14 @@ IF ABS(tarInc) < FLOOR(ABS(LATITUDE)) OR ABS(tarInc) > (180 - CEILING(ABS(LATITU
 	
 
 //intial state (courtesy /u/only_to_downvote
-CLEARSCREEN. UNLOCK all.
+UNLOCK all.
 SET SHIP:CONTROL:PILOTMAINTHROTTLE TO 0.
-SET TERMINAL:WIDTH TO 50.
-SET TERMINAL:HEIGHT TO 40.
-SET CONFIG:IPU TO 500.
-SET maxLinesToPrint TO 24. // Max # of lines in scrolling list
-SET listLineStart TO 16. // First line for print scrolling list
+
 IF logVerboseData {
     LOG 1 TO launchDataLog.csv. DELETEPATH("launchDataLog.csv").
     // Verbose data log header
     LOG "M.E.T. [s], Sea Level Altitude [m], Radar Altitude [m], Latitude [deg], Longitude [deg], Surface Velocity [m/s], Orbital Velocity [m/s], Vertical Speed [m/s], Ground Speed [m/s], Apoapsis [m], Time to Apoapsis [s], Periapsis [m], Time to Periapsis [s], Inclination [deg], Mass [t], Max Thrust [kN], Current Thrust [kN], T.W.R., % Terminal Velocity, Trajectory Preferred Pitch [deg], Pitch Command [deg], Vessel Pitch [deg], Heading Command [deg], Vessel Heading [deg], dv Spent [m/s], Dynamic Pressure [kPa]" TO launchDataLog.csv.
 }
-//Scrolling print setup
-// SET printList TO LIST().
-// FUNCTION scrollPrint {
-    // DECLARE PARAMETER nextPrint.
-    // printList:ADD(nextPrint).
-    // UNTIL printList:LENGTH <= maxLinesToPrint {printList:REMOVE(0).}.
-    // LOCAL currentLine IS listLineStart.
-    // FOR printLine in printList {
-        // PRINT "                                                 " AT (0,currentLine).
-        // PRINT printLine AT (0,currentLine).
-        // SET currentLine TO currentLine+1.
-    // }
-// }
 
 // solid motor info for current stage (used for ullage staging operations)
 FUNCTION stageSolidInfo {
@@ -229,7 +197,8 @@ SET steerTo TO UP.
 SET launchTime TO TIME:SECONDS+6.
 SET logTime TO launchTime+logTimeIncrement.
 SET verboseLogTime TO launchTime.
-LOCK MET TO TIME:SECONDS-launchTime.
+LOCK MET TO MISSIONTIME.
+LOCK cDown TO TIME:SECONDS-launchTime.
 SET launchLoc TO SHIP:GEOPOSITION.
 SET launchAlt TO ALTITUDE.
 SET currentStageNum TO 1.
@@ -295,7 +264,7 @@ IF SHIP:BODY:ATM:EXISTS {
 // Calculate launch azimuth
 SET inertialAzimuth TO ARCSIN(MAX(MIN(COS(tarInc) / COS(launchLoc:LAT),1),-1)).
 SET targetOrbitSpeed TO SQRT(SHIP:BODY:MU / (tarAlt+SHIP:BODY:RADIUS)).
-SET rotVelX TO targetOrbitSpeed*SIN(inertialAzimuth) - (2*CONSTANT:PI*SHIP:BODY:RADIUS/SHIP:BODY:ROTATIONPERIOD).
+SET rotVelX TO targetOrbitSpeed*SIN(inertialAzimuth) - (2*pi*rb/bRot).
 SET rotVelY TO targetOrbitSpeed*COS(inertialAzimuth).
 SET launchAzimuth TO ARCTAN(rotVelX / rotVelY).
 IF tarInc < 0 {SET launchAzimuth TO 180-launchAzimuth.}.
@@ -307,7 +276,7 @@ UNTIL launchComplete {
     IF runMode = -1 {
         PRINT "Countdown" AT (17,0).
        
-        IF MET >= -5 AND tMin5 {
+        IF cDown >= -5 AND tMin5 {
             PRINT "55555" AT (43,35).
             PRINT "5    " AT (43,36).
             PRINT "5555 " AT (43,37).
@@ -318,7 +287,7 @@ UNTIL launchComplete {
             SET tMin5 TO FALSE.
         }
        
-        IF MET >= -4 AND tMin4 {
+        IF cDOWN >= -4 AND tMin4 {
             PRINT "4   4 " AT (43,35).
             PRINT "4   4 " AT (43,36).
             PRINT "444444" AT (43,37).
@@ -340,7 +309,7 @@ UNTIL launchComplete {
             }
         }
        
-        IF MET >= -3 AND tMin3 {
+        IF cDown >= -3 AND tMin3 {
             PRINT "33333 " AT (43,35).
             PRINT "    33" AT (43,36).
             PRINT "  333 " AT (43,37).
@@ -369,7 +338,7 @@ UNTIL launchComplete {
             }
         }
        
-        IF MET >= -2 AND tMin2 {
+        IF cDown >= -2 AND tMin2 {
             PRINT " 2222 " AT (43,35).
             PRINT "2   22" AT (43,36).
             PRINT "  22  " AT (43,37).
@@ -378,7 +347,7 @@ UNTIL launchComplete {
             SET tMin2 TO FALSE.
         }
        
-        IF MET >= -1 AND tMin1 {
+        IF cDown >= -1 AND tMin1 {
             PRINT "  11  " AT (43,35).
             PRINT " 1 1  " AT (43,36).
             PRINT "   1  " AT (43,37).
@@ -387,7 +356,7 @@ UNTIL launchComplete {
             SET tMin1 TO FALSE.
         }
        
-        IF MET >= -0.1 AND tMinHold {
+        IF cDown >= -0.1 AND tMinHold {
             PRINT " HOLD " AT (43,35).
             PRINT " HOLD " AT (43,36).
             PRINT " HOLD " AT (43,37).
@@ -401,7 +370,7 @@ UNTIL launchComplete {
             SET tset to 1.
         }
        
-        IF MET >= 0 AND tMin0 {
+        IF cDown >= 0 AND tMin0 {
             SET tSet to 1.
             STAGE.
             SET numParts TO SHIP:PARTS:LENGTH.
@@ -419,7 +388,7 @@ UNTIL launchComplete {
             // LOCK MET TO TIME:SECONDS-launchTime.
             SET logTime TO launchTime+logTimeIncrement.
             SET engInfo TO activeEngineInfo().
-            SET launchTWR TO engInfo[1]/(SHIP:MASS*BODY:MU/(ALTITUDE+BODY:RADIUS)^2).
+            SET launchTWR TO engInfo[1]/(SHIP:MASS*mu/(ALTITUDE+rb)^2).
             PRINT "      " AT (43,35).
             PRINT "      " AT (43,36).
             PRINT "      " AT (43,37).
@@ -534,7 +503,7 @@ UNTIL launchComplete {
     IF runMode = 3 {
         SET WARP TO 0.
 		SET tset TO 0.
-		MNV_APONODE(tarAlt).
+		MNV_NODE(tarAlt, ETA:APOAPSIS).
 		SET nodeDeltaV TO brnDV.
         SET runMode TO 4.
         scrollPrint("T+"+ROUND(MET(),1)+" Steering to maneuver node").
