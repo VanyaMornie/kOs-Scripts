@@ -6,15 +6,18 @@ FUNCTION doPrelaunch {
 	scrReq("lib_node.ks").
 	WAIT UNTIL SHIP:UNPACKED.
 	UNLOCK all.
-	SET SHIP:CONTROL:PILOTMAINTHROTTLE TO 0.
+	killThrot().
+	SET runMode TO -1.
 }
 
 FUNCTION doLaunch {
 	PARAMETER tarAlt.
 	PARAMETER tarInc IS 0.
-	PARAMETER trnStart IS 500.
+	PARAMETER trnStart IS SHIP:ALTITUDE + 200.
 	PARAMETER trnEnd IS 35000.
-	PARAMETER turnExponent IS 0.7.	
+	PARAMETER turnExponent IS 0.7.
+	PARAMETER exitRM IS 99. 
+	
 	
 	// Staging delays (time after detection of engine shutdown before staging or between staging actions)
 	SET boosterStageDelay TO 2.
@@ -78,46 +81,56 @@ FUNCTION doLaunch {
 	}
 	
 	// solid motor info for current stage (used for ullage staging operations)
-FUNCTION stageSolidInfo {
-    LOCAL solidMinBurnTime IS 99999.
-    LOCAL solidTotalThrust IS 0.
-    LOCAL engList IS LIST().
-    LIST ENGINES IN engList.
-    FOR e in engList {
-        IF e:IGNITION AND e:RESOURCES:LENGTH <> 0 {
-            FOR r in e:RESOURCES {
-                IF r:NAME = "SolidFuel" {
-                    LOCAL isp IS e:ISP. IF isp = 0 SET isp TO 0.001.
-                    LOCAL thrust IS e:THRUST.
-                    SET solidTotalThrust TO solidTotalThrust + thrust.
-                    LOCAL mdot IS thrust/(isp*9.81). IF mdot = 0 SET mdot TO 0.001.
-                    LOCAL burnTime IS (r:AMOUNT*0.0075)/mdot.
-                    IF burnTime < solidMinBurnTime SET solidMinBurnTime TO burnTime.
-                }
-            }
-        }
-    }
-    RETURN LIST(solidMinBurnTime, solidTotalThrust).
-}
+	FUNCTION stageSolidInfo {
+		LOCAL solidMinBurnTime IS 99999.
+		LOCAL solidTotalThrust IS 0.
+		LOCAL engList IS LIST().
+		LIST ENGINES IN engList.
+		FOR e in engList {
+			IF e:IGNITION AND e:RESOURCES:LENGTH <> 0 {
+				FOR r in e:RESOURCES {
+					IF r:NAME = "SolidFuel" {
+						LOCAL isp IS e:ISP. IF isp = 0 SET isp TO 0.001.
+						LOCAL thrust IS e:THRUST.
+						SET solidTotalThrust TO solidTotalThrust + thrust.
+						LOCAL mdot IS thrust/(isp*9.81). IF mdot = 0 SET mdot TO 0.001.
+						LOCAL burnTime IS (r:AMOUNT*0.0075)/mdot.
+						IF burnTime < solidMinBurnTime SET solidMinBurnTime TO burnTime.
+					}
+				}
+			}
+		}
+		RETURN LIST(solidMinBurnTime, solidTotalThrust).
+	}
 	
-FUNCTION activeEngineInfo {
-    // ## should technically be updated to account for engines not pointing directly aft
-    LIST ENGINES IN engList.
-    LOCAL currentT IS 0.
-    LOCAL maxT IS 0.
-    LOCAL mDot IS 0.
-    FOR eng IN engList {
-        IF eng:IGNITION {
-            SET maxT TO maxT + eng:AVAILABLETHRUST.
-            SET currentT TO currentT + eng:THRUST.
-            IF NOT eng:ISP = 0 SET mDot TO mDot + currentT / eng:ISP.
-        }
-    }
-    IF mDot = 0 LOCAL avgIsp IS 0.
-    ELSE LOCAL avgIsp IS currentT / mDot.
-    RETURN LIST(currentT, maxT, avgIsp, mDot).
-}	
+	FUNCTION activeEngineInfo {
+		// ## should technically be updated to account for engines not pointing directly aft
+		LIST ENGINES IN engList.
+		LOCAL currentT IS 0.
+		LOCAL maxT IS 0.
+		LOCAL mDot IS 0.
+		FOR eng IN engList {
+			IF eng:IGNITION {
+				SET maxT TO maxT + eng:AVAILABLETHRUST.
+				SET currentT TO currentT + eng:THRUST.
+				IF NOT eng:ISP = 0 SET mDot TO mDot + currentT / eng:ISP.
+			}
+		}
+		IF mDot = 0 LOCAL avgIsp IS 0.
+		ELSE LOCAL avgIsp IS currentT / mDot.
+		RETURN LIST(currentT, maxT, avgIsp, mDot).
+	}	
 
+	// Calculate launch azimuth
+	FUNCTION launchAzi {
+		SET inertialAzimuth TO ARCSIN(MAX(MIN(COS(tarInc) / COS(launchLoc:LAT),1),-1)).
+		SET targetOrbitSpeed TO SQRT(SHIP:BODY:MU / (tarAlt+SHIP:BODY:RADIUS)).
+		SET rotVelX TO targetOrbitSpeed*SIN(inertialAzimuth) - (2*pi*rb/bRot).
+		SET rotVelY TO targetOrbitSpeed*COS(inertialAzimuth).
+		SET launchAzimuth TO ARCTAN(rotVelX / rotVelY).
+		IF tarInc < 0 {SET launchAzimuth TO 180-launchAzimuth.}.
+		RETURN launchAzimuth.
+	}	
 	// Stage dV calc
 	FUNCTION deltaVstage {
 		FOR p in SHIP:PARTS {
@@ -187,7 +200,7 @@ FUNCTION activeEngineInfo {
 	SET currentStageNum TO 1.
 	SET stagingInProgress TO False.
 	SET launchComplete TO False.
-	SET runMode TO -1.
+	SET runMode TO 0.
 	SET numParts TO SHIP:PARTS:LENGTH.
 	SET boostBurn TO FALSE.
 	SET trajectoryPitch TO 90.
@@ -246,19 +259,10 @@ FUNCTION activeEngineInfo {
 		}
 	}
 
-	// Calculate launch azimuth
-	SET inertialAzimuth TO ARCSIN(MAX(MIN(COS(tarInc) / COS(launchLoc:LAT),1),-1)).
-	SET targetOrbitSpeed TO SQRT(SHIP:BODY:MU / (tarAlt+SHIP:BODY:RADIUS)).
-	SET rotVelX TO targetOrbitSpeed*SIN(inertialAzimuth) - (2*pi*rb/bRot).
-	SET rotVelY TO targetOrbitSpeed*COS(inertialAzimuth).
-	SET launchAzimuth TO ARCTAN(rotVelX / rotVelY).
-	IF tarInc < 0 {SET launchAzimuth TO 180-launchAzimuth.}.
-	SET steerHeading TO launchAzimuth.
-		
 	//Launch loop start
-	UNTIL launchComplete {
+	UNTIL runMode = exitRm {
 	//Pretty Countdown
-		IF runMode = -1 {
+		IF runMode = 0 {
 			PRINT "Countdown" AT (17,0).
 		   
 			IF cDown >= -5 AND tMin5 {
@@ -268,7 +272,7 @@ FUNCTION activeEngineInfo {
 				PRINT "   55" AT (43,38).
 				PRINT "5555 " AT (43,39).
 				SAS ON.
-				scrollPrint("T-5.0 Launch stability assist system activated").
+				scrollPrint("T-5.0 Launch stability assist system activated",FALSE).
 				SET tMin5 TO FALSE.
 			}
 		   
@@ -287,7 +291,7 @@ FUNCTION activeEngineInfo {
 				}
 				ELSE {
 					IF runOnce2 {
-						scrollPrint("T"+ROUND(MET(),1)+" Main engine at full thrust").
+						scrollPrint("Main engine at full thrust").
 						SET runOnce2 TO False.
 					}
 					SET tMinHold TO False.
@@ -317,7 +321,7 @@ FUNCTION activeEngineInfo {
 					STAGE.
 					SET numParts TO SHIP:PARTS:LENGTH.
 					SET ignitionTime to TIME:SECONDS.
-					scrollPrint("T-3.0 Main engine ignition sequence begin").
+					scrollPrint("T-3.0 Main engine ignition sequence begin",FALSE).
 					LOCK tset TO (TIME:SECONDS-ignitionTime)/2.
 					SET tMin3 TO FALSE.
 				}
@@ -349,7 +353,7 @@ FUNCTION activeEngineInfo {
 				PRINT " HOLD " AT (43,39).
 				IF runOnce {
 					SET runOnce TO False.
-					scrollPrint("T-X.X HOLD - Waiting for engines to spool up").
+					scrollPrint("T-X.X HOLD - Waiting for engines to spool up",FALSE).
 				}
 				SET launchTime TO TIME:SECONDS+0.1.
 				SET tset to 1.
@@ -360,14 +364,14 @@ FUNCTION activeEngineInfo {
 				STAGE.
 				SET numParts TO SHIP:PARTS:LENGTH.
 				IF STAGE:SOLIDFUEL > 0 {
-					scrollPrint("T-0.0 SRB Ignition").
+					scrollPrint("T-0.0 SRB Ignition",FALSE).
 				}
-				scrollPrint("T+0.0 Liftoff!").
-				SET runMode to 0.
+				scrollPrint("T+0.0 Liftoff!",FALSE).
+				SET runMode to 1.
 				SET tMin0 TO FALSE.
 			}
 		   // One-time actions before initiating vertical ascent
-			IF runMode = 0 {
+			IF runMode = 1 {
 				WAIT 0.
 				SET launchTime TO TIME:SECONDS.
 				// LOCK MET TO TIME:SECONDS-launchTime.
@@ -384,25 +388,25 @@ FUNCTION activeEngineInfo {
 				IF autoAscent { // Auto adjust pitch based on TWR
 					SET trnEnd TO 0.128*atmTop*launchTWR + 0.5*atmTop. // Based on testing
 					SET turnExponent TO MAX(1/(2.5*launchTWR - 1.7), 0.25). // Based on testing
-					printList:ADD("T+"+ROUND(MET(),1)+" Using auto ascent trajectory with paramaters:").
-					printList:ADD("        Turn End Alt. = "+ROUND(trnEnd)).
-					scrollPrint("        Turn Exponent = "+ROUND(turnExponent,3)).
+					scrollPrint("Using auto ascent trajectory with paramaters:").
+					scrollPrint("        Turn End Alt. = "+ROUND(trnEnd),FALSE).
+					scrollPrint("        Turn Exponent = "+ROUND(turnExponent,3),FALSE).
 				} 
 			}
 		}
-		IF runMode = 0 {
+		IF runMode = 1 {
 			PRINT "Initial vertical ascent" AT (17,0).
 			IF WARP > 1 SET WARP TO 1. // limit physwarp to 2x for code stability
 			IF ALT:RADAR > trnStart AND SHIP:AIRSPEED > 75 {
-				SET runMode TO 1.
-				scrollPrint("T+"+ROUND(MET(),1)+" Launch site cleared").
-				scrollPrint("T+"+ROUND(MET(),1)+" Starting ascent guidance").
+				SET runMode TO 2.
+				scrollPrint("Launch site cleared").
+				scrollPrint("Starting ascent guidance").
 				SAS OFF.
 				LOCK STEERING TO steerTo.
 			}
 		}
 		// Ascent trajectory program until reach desired apoapsis  
-		IF runMode = 1 {
+		IF runMode = 2 {
 			PRINT "Ascent Guidamce        " AT (17,0).
 			IF WARP > 1 SET WARP TO 1. // limit physwarp to 2x for code stability
 		   
@@ -420,7 +424,7 @@ FUNCTION activeEngineInfo {
 			   
 				// Ship compass heading control
 				IF ABS(SHIP:OBT:INCLINATION - ABS(tarInc)) > 2 {
-					SET steerHeading TO launchAzimuth.
+					SET steerHeading TO launchAzi().
 				}
 				ELSE { // Feedback loop once close to desired inclination
 					IF tarInc >= 0 {
@@ -459,32 +463,32 @@ FUNCTION activeEngineInfo {
 				SET tset TO 0.
 				SET trajectoryPitch TO 0.
 				SET steerPitch TO 0.
-				scrollPrint("T+"+ROUND(MET(),1)+" Desired apoapsis reached").
+				scrollPrint("Desired apoapsis reached").
 				SET pctTerminalVel TO "N/A".
 				IF ALTITUDE < atmTop {
-					SET runMode TO 2.
-					scrollPrint("T+"+ROUND(MET(),1)+" Steering prograde until out of atmosphere").
+					SET runMode TO 3.
+					scrollPrint("Steering prograde until out of atmosphere").
 				}
 				ELSE {
-					SET runMode TO 3.
+					SET runMode TO 4.
 				}
 			}
 		}
 	// Coast out of atmosphere 
-		IF runMode = 2 {
+		IF runMode = 3 {
 			PRINT "Coast out of atmosphere  " AT (17,0).
 			IF WARP > 1 SET WARP TO 1. // limit physwarp to 2x for code stability
 			SET steerTo TO SHIP:SRFPROGRADE.
-			//cheaty atmosphere loss
+			//cheaty atmosphere loss fix
 				IF APOAPSIS >= tarAlt {SET tset TO 0. }
 				IF APOAPSIS < tarAlt {SET tset TO (tarAlt-APOAPSIS)/(tarAlt*0.01).}
 			IF ALTITUDE > atmTop {
-			SET runMode TO 3.
+			SET runMode TO 4.
 			}.
 		}
 		
 		// circularization node and warp
-		IF runMode = 3 {
+		IF runMode = 4 {
 			SET WARP TO 0.
 			SET tset TO 0.
 			MNV_APONODE(tarAlt, ETA:APOAPSIS).
@@ -494,9 +498,9 @@ FUNCTION activeEngineInfo {
 		}
 	 
 	 // One time check to decouple stage if nearly depleted
-		IF runMode = 4 {
+		IF runMode = 5 {
 			SET tset TO 0.
-			SET runMode TO 4.5.
+			SET runMode TO 6.
 			IF stageDeltaV > 0 { // dV alculator returns -1 if unable to calculate
 				IF (stageDeltaV < nodeDeltaV*0.5 AND nodeDeltaV > 200) OR stageDeltaV < 100 {
 					SET triggerStage TO True.
@@ -506,7 +510,7 @@ FUNCTION activeEngineInfo {
 		}
 		  
 	// Potential waiting on staging action if triggered
-		IF runMode = 4.5 {
+		IF runMode = 6 {
 			SET tset TO 0.
 			IF NOT (triggerStage OR stagingInProgress OR SHIP:MAXTHRUST < 0.01) {
 				SET runMode TO 5.         
@@ -514,7 +518,7 @@ FUNCTION activeEngineInfo {
 		}
 	   
 	// Steer to maneuver node  
-		IF runMode = 5 {
+		IF runMode = 7 {
 			MNV_WARPNODE(runMode, useWarp).
 			HUDTEXT(runmode, 5, 2, 15, red, false).
 		}
@@ -575,7 +579,7 @@ FUNCTION activeEngineInfo {
 				IF ullageShutdown {            
 					SET ullageDetect TO False.
 					SET ullageShutdown TO False.
-					scrollPrint("T+"+ROUND(MET(),1)+" Ullage shutdown").
+					scrollPrint("Ullage shutdown").
 				}
 				// Drop tanks empty detection
 				// IF NOT(flameoutDetect) {
@@ -587,7 +591,7 @@ FUNCTION activeEngineInfo {
 			// Staging triggered elsewhere in code
 			IF triggerStage {
 				SET tset TO 0.
-				scrollPrint("T+"+ROUND(MET(),1)+" Staging triggered").
+				scrollPrint("Staging triggered").
 				SET stageTime TO TIME:SECONDS+stageDelay.
 				SET triggerStage TO False.
 				SET stagingInProgress TO True.
@@ -597,7 +601,7 @@ FUNCTION activeEngineInfo {
 			IF TIME:SECONDS >= boostStageTime {
 				STAGE.
 				SET numParts TO SHIP:PARTS:LENGTH.
-				scrollPrint("T+"+ROUND(MET(),1)+" Booster separation").
+				scrollPrint("Booster separation").
 				SET boostStageTime TO TIME:SECONDS+100000.
 				SET stagingInProgress TO False.
 			}
@@ -608,7 +612,7 @@ FUNCTION activeEngineInfo {
 				SET numParts TO SHIP:PARTS:LENGTH.
 				// drop tank release
 				IF dropTanksEmpty {
-					scrollPrint("T+"+ROUND(MET(),1)+" Drop tanks released").
+					scrollPrint("Drop tanks released").
 					SET stageTime TO TIME:SECONDS+100000.
 					SET dropTanksEmpty TO False.
 				}
@@ -616,7 +620,7 @@ FUNCTION activeEngineInfo {
 				SET stageSolidFuelMass TO 0.0075*STAGE:SOLIDFUEL.
 				IF stageSolidFuelMass < 0.05*SHIP:MASS AND stageSolidFuelMass > 0 {
 					SET ullageDetect TO True.
-					scrollPrint("T+"+ROUND(MET(),1)+" Ullage motor ignition detected").
+					scrollPrint("Ullage motor ignition detected").
 					LOCAL temp IS stageSolidInfo().
 					SET ullageTime TO temp[0] + TIME:SECONDS.
 					IF temp[0] = 99999 SET ullageDetect TO False. //should never happen, but just in case
@@ -627,7 +631,7 @@ FUNCTION activeEngineInfo {
 				}
 				// Detect separation only (ignition on the next stage)
 				ELSE IF SHIP:MAXTHRUST < 0.01 {
-					scrollPrint("T+"+ROUND(MET(),1)+" Stage "+currentStageNum+" separation").
+					scrollPrint("Stage "+currentStageNum+" separation").
 					SET stageTime TO TIME:SECONDS+stageDelay.
 				}  
 				// Ignite next stage if already primed by separation action

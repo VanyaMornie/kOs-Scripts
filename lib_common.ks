@@ -81,3 +81,8 @@ FUNCTION scrDelete{
 	ELSE {scrollPrint("File not found",TRUE)}
 
 }
+
+FUNCTION killThrot {
+	LOCK THROTTLE TO 0.
+	SET SHIP:CONTROL:PILOTMAINTHROTTLE TO 0.
+}
