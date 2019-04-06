@@ -1,6 +1,5 @@
-// Basic boot scrip
-LOCK MET TO MISSIONTIME.
-
+// Basic boot script (new)
+SET ver TO "0.1.0"
 IF SHIP:CONNECTION:ISCONNECTED OR SHIP:STATUS = "PRELAUNCH" {COPYPATH("0:/misclib.ks","1:/").}
 RUNPATH("1:/misclib.ks").
 // THE ACTUAL BOOTUP PROCESS
