@@ -1,25 +1,32 @@
-// Basic boot script (new)
-SET ver TO "0.1.0"
-IF SHIP:CONNECTION:ISCONNECTED OR SHIP:STATUS = "PRELAUNCH" {COPYPATH("0:/misclib.ks","1:/").}
-RUNPATH("1:/misclib.ks").
+// Basic boot script (new) v 0.1.0
+
+IF SHIP:CONNECTION:ISCONNECTED OR SHIP:STATUS = "PRELAUNCH" {COPYPATH("0:/lib_common.ks","1:/").}
+RUNONCEPATH("1:/lib_common.ks").
+
 // THE ACTUAL BOOTUP PROCESS
 IF SHIP:STATUS = "PRELAUNCH" {SET updateScript TO SHIP:NAME+".prelaunch.ks".}
-ELSE {SET updateScript TO SHIP:NAME + SHIP:NAME+".update.ks".}
-PRINT updateScript.
+ELSE {SET updateScript TO SHIP:NAME+".update.ks".}
+
+scrollPrint(updateScript,FALSE).
+
 // If we have a connection, see if there are new instructions. If so, download
 // and run them.
 IF SHIP:CONNECTION:ISCONNECTED OR SHIP:STATUS = "PRELAUNCH"{
-	scrollPrint("T+"+ROUND(MET,1)+" Checking for updated instructions").
+	scrollPrint("Checking for updated instructions").
 	IF HAS_FILE(updateScript, 0) {
-	scrollPrint("T+"+ROUND(MET,1)+" New instructions located - downloading").
-	DOWNLOAD(updateScript).
-	WAIT 1.
-    RUNPATH(updateScript).
+		scrollPrint("New instructions located - downloading").
+		DOWNLOAD(updateScript).
+		WAIT 1.
+		RUNONCEPATH(updateScript).
 	}
+	ELSE {
+		scrollPrint("No new instructions found").
+	}
+	
 }
   // If a startup.ks file exists on the disk, run that.
 IF HAS_FILE("startup.ks", 1) {
-	RUNPATH(startup).
+	RUNONCEPATH(startup).
 	}
 	// ELSE {
 	// WAIT UNTIL SHIP:CONNECTION:ISCONNECTED.

@@ -1,4 +1,5 @@
 //common library for a	all scripts (general funtctions) v0.1.0
+
 CORE:DOEVENT("Open Terminal").
 CLEARSCREEN.
 SET TERMINAL:WIDTH TO 50.	
